@@ -2,5 +2,5 @@
 .pytest_cache
 .coverage
 __pycache__
-coverage-reports-data-getl/
-test-reports-data-getl/
+coverage-reports/
+test-reports/

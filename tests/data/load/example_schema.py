@@ -1,13 +1,8 @@
 """A Helper that can supply schema of various types to test load GETL."""
 
-from pyspark.sql.types import (
-    StringType,
-    StructField,
-    StructType,
-    BooleanType,
-    IntegerType
-)
 import json
+
+from pyspark.sql import types as T
 
 
 def create_json_schema(schema_type: str = 'valid') -> dict:
@@ -24,62 +19,62 @@ def create_json_schema(schema_type: str = 'valid') -> dict:
     return json.loads(mapper[schema_type]().json())
 
 
-def create_valid_schema() -> StructType:
+def create_valid_schema() -> T.StructType:
     """Return a spark schema."""
     return (
-        StructType([
-            StructField("name", StringType(), True),
-            StructField("empid", IntegerType(), True),
-            StructField("happy", BooleanType(), True)])
+        T.StructType([
+            T.StructField("name", T.StringType(), True),
+            T.StructField("empid", T.IntegerType(), True),
+            T.StructField("happy", T.BooleanType(), True)])
     )
 
 
-def schema_missing_field() -> StructType:
+def schema_missing_field() -> T.StructType:
     """Return an sample spark schema with a missing field."""
     return (
-        StructType([
-            StructField("name", IntegerType(), True),
-            StructField("empid", StringType(), True)])
+        T.StructType([
+            T.StructField("name", T.IntegerType(), True),
+            T.StructField("empid", T.StringType(), True)])
     )
 
 
-def schema_extra_field() -> StructType:
+def schema_extra_field() -> T.StructType:
     """Return an sample spark schema with an extra field defined."""
     return (
-        StructType([
-            StructField("name", StringType(), True),
-            StructField("empid", IntegerType(), True),
-            StructField("happy", BooleanType(), True),
-            StructField("extra", BooleanType(), True)])
+        T.StructType([
+            T.StructField("name", T.StringType(), True),
+            T.StructField("empid", T.IntegerType(), True),
+            T.StructField("happy", T.BooleanType(), True),
+            T.StructField("extra", T.BooleanType(), True)])
     )
 
 
-def schema_extra_missing_non_nullable_field() -> StructType:
+def schema_extra_missing_non_nullable_field() -> T.StructType:
     """Return an sample spark schema with an extra field defined."""
     return (
-        StructType([
-            StructField("name", StringType(), True),
-            StructField("empid", IntegerType(), True),
-            StructField("happy", BooleanType(), True),
-            StructField("extra", BooleanType(), False)])
+        T.StructType([
+            T.StructField("name", T.StringType(), True),
+            T.StructField("empid", T.IntegerType(), True),
+            T.StructField("happy", T.BooleanType(), True),
+            T.StructField("extra", T.BooleanType(), False)])
     )
 
 
-def schema_different_castable_data_field() -> StructType:
+def schema_different_castable_data_field() -> T.StructType:
     """Return an sample spark schema with castable change in datatype."""
     return (
-        StructType([
-            StructField("name", StringType(), True),
-            StructField("empid", StringType(), True),
-            StructField("happy", BooleanType(), True)])
+        T.StructType([
+            T.StructField("name", T.StringType(), True),
+            T.StructField("empid", T.StringType(), True),
+            T.StructField("happy", T.BooleanType(), True)])
     )
 
 
-def schema_different_uncastable_data_field() -> StructType:
+def schema_different_uncastable_data_field() -> T.StructType:
     """Return an sample spark schema with uncastable change in datatype."""
     return (
-        StructType([
-            StructField("name", IntegerType(), True),
-            StructField("empid", StringType(), True),
-            StructField("happy", BooleanType(), True)])
+        T.StructType([
+            T.StructField("name", T.IntegerType(), True),
+            T.StructField("empid", T.StringType(), True),
+            T.StructField("happy", T.BooleanType(), True)])
     )

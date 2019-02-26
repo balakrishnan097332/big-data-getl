@@ -16,12 +16,12 @@ from pyspark.sql.types import StructType
 from pyspark.sql.utils import AnalysisException
 
 LOGGING = logging.getLogger(__name__)
-JsonSchemaType = TypeVar('T', int, float, str, complex)
+JSON_SCHEMA_TYPE = TypeVar('T', int, float, str, complex)
 
 
 def load_json(spark: SparkSession,
               paths: List[str],
-              json_schema: Dict[str, JsonSchemaType]) -> DataFrame:
+              json_schema: Dict[str, JSON_SCHEMA_TYPE]) -> DataFrame:
     """Load json files and returns a DataFrame.
 
      Args:
@@ -50,7 +50,7 @@ def load_json(spark: SparkSession,
 
 def load_xml(spark: SparkSession,
              paths: List[str],
-             json_schema: Dict[str, JsonSchemaType],
+             json_schema: Dict[str, JSON_SCHEMA_TYPE],
              row_tag: str
              ) -> DataFrame:
     """Load xml files and returns a DataFrame.

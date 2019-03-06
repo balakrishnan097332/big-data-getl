@@ -4,3 +4,9 @@
 __pycache__
 coverage-reports/
 test-reports/
+.DS_Store
+_*
+*.rst
+conf.py
+Makefile
+git

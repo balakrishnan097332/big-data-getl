@@ -8,20 +8,21 @@ The Generic module that does the following.
 """
 
 import logging
-from typing import Dict, TypeVar, List
+from typing import Dict, List, TypeVar
 
 from pyspark import RDD
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.types import StructType
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.utils import AnalysisException
 
+from big_data_getl.utils import json_to_spark_schema
+
 LOGGING = logging.getLogger(__name__)
-JSON_SCHEMA_TYPE = TypeVar('T', int, float, str, complex)
+JsonSchemaType = TypeVar('T', int, float, str, complex)
 
 
 def load_json(spark: SparkSession,
               paths: List[str],
-              json_schema: Dict[str, JSON_SCHEMA_TYPE]) -> DataFrame:
+              json_schema: Dict[str, JsonSchemaType]) -> DataFrame:
     """Load json files and returns a DataFrame.
 
      Args:
@@ -40,7 +41,7 @@ def load_json(spark: SparkSession,
         return (
             spark
             .read
-            .schema(StructType.fromJson(json_schema))
+            .schema(json_to_spark_schema(json_schema))
             .json(paths, multiLine=True)
         )
     except AnalysisException as spark_exception:
@@ -50,7 +51,7 @@ def load_json(spark: SparkSession,
 
 def load_xml(spark: SparkSession,
              paths: List[str],
-             json_schema: Dict[str, JSON_SCHEMA_TYPE],
+             json_schema: Dict[str, JsonSchemaType],
              row_tag: str
              ) -> DataFrame:
     """Load xml files and returns a DataFrame.
@@ -68,7 +69,7 @@ def load_xml(spark: SparkSession,
     return (
         spark
         .read
-        .schema(StructType.fromJson(json_schema))
+        .schema(json_to_spark_schema(json_schema))
         .format('xml')
         .options(rowTag=row_tag)
         .load(','.join(paths))

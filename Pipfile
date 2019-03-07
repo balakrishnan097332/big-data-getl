@@ -1,3 +1,7 @@
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
 [[source]]
 url = "https://artifactory-developer:AP5bWdhoJh3S5yHbcCr57uLt35d@husqvarnadss.jfrog.io/husqvarnadss/api/pypi/big-data-pypi/simple"
 verify_ssl = true
@@ -12,10 +16,13 @@ autopep8 = "*"
 pylint = "*"
 pytest-mock = "*"
 pytest-cov = "*"
+moto = "*"
 
 [packages]
 py4j = "*"
 pyspark = "*"
+PyYAML = "*"
+boto3 = "*"
 
 [requires]
 python_version = "3.5"

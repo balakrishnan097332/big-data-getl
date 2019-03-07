@@ -8,10 +8,11 @@ The Generic module that does the following.
 """
 
 import logging
-from typing import Dict, TypeVar, List
+from typing import Dict, List, TypeVar
 
+from big_data_getl.utils import json_to_spark_schema
 from pyspark import RDD
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import StructType
 from pyspark.sql.utils import AnalysisException
 
@@ -40,7 +41,7 @@ def load_json(spark: SparkSession,
         return (
             spark
             .read
-            .schema(StructType.fromJson(json_schema))
+            .schema(json_to_spark_schema(json_schema))
             .json(paths, multiLine=True)
         )
     except AnalysisException as spark_exception:
@@ -68,7 +69,7 @@ def load_xml(spark: SparkSession,
     return (
         spark
         .read
-        .schema(StructType.fromJson(json_schema))
+        .schema(json_to_spark_schema(json_schema))
         .format('xml')
         .options(rowTag=row_tag)
         .load(','.join(paths))

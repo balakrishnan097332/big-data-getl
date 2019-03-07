@@ -1,4 +1,4 @@
-# Big Data Spark GETL
+# Big Data GETL
 
 Upgrading smart system lift to the new Generic Extract Transform and Load pattern
 
@@ -40,3 +40,10 @@ $ ./bin/run_tests.sh
 - Accepts SparkSession, list of JSON files, schema and returns a Dataframe on a successful load
 - Accepts SparkSession, list of XML files, schema, tag name which is to be considered as root and returns a Dataframe on a successful load
 - Accepts SparkSession and list of files of any kind and returns an RDD
+
+### Utils
+
+- Accepts Json schema and returns spark schema of type StructType
+- Accepts a list of S3 files and deletes them.
+- Accepts a list of s3 files and copies files between S3 buckets.
+- Accepts a list of s3 files, Copies them between buckets and removes them from source.

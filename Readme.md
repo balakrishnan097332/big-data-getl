@@ -47,3 +47,7 @@ $ ./bin/run_tests.sh
 - Accepts a list of S3 files and deletes them.
 - Accepts a list of s3 files and copies files between S3 buckets.
 - Accepts a list of s3 files, Copies them between buckets and removes them from source.
+
+### Write
+
+- Accepts DF and writes to a folder location with specified file format

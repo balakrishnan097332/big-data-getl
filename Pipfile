@@ -16,6 +16,7 @@ autopep8 = "*"
 pylint = "*"
 pytest-mock = "*"
 pytest-cov = "*"
+moto = "*"
 
 [packages]
 py4j = "*"

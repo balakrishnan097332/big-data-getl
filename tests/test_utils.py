@@ -1,55 +1,37 @@
 """Unit test for GETL utils function."""
-import json
 from unittest import mock
-from unittest.mock import patch
 
-import boto3
-import botocore
 import pytest
 from botocore.exceptions import ClientError
-from moto import mock_s3
-
-from big_data_getl.utils import (copy_and_cleanup, copy_files, delete_files,
-                                 json_to_spark_schema)
 from pyspark.sql.types import StructType
-from tests.data.utils.example_json_schema import create_json_schema
+
+from big_data_getl.utils import (copy_and_cleanup, copy_keys, delete_files,
+                                 json_to_spark_schema)
+from tests.data.utils.example_schema import create_json_schema
+
 
 # HELPER FUNCTION
-
-
-def create_s3_files(s3,
-                    paths: list,
-                    bucket_name: str = 'pytest',
-                    stud: str = ''
-                    ) -> None:
+def create_s3_files(s3_mock, keys, bucket='tmp-bucket') -> None:
     """Create files in S3 bucket."""
-    create_s3_bucket(s3, bucket_name)
-    test_binary_data = b'Here we have some test data'
-    for obj in paths:
-        object = s3.Object(bucket_name, stud + obj)
-        object.put(Body=test_binary_data)
-
-# HELPER FUNCTION
-
-
-def create_s3_bucket(s3, bucket_name: str = 'pytest') -> None:
-    """Create files in S3 bucket."""
-    s3.create_bucket(Bucket=bucket_name)
+    s3_mock.create_bucket(Bucket=bucket)
+    for key in keys:
+        s3_mock.put_object(Bucket=bucket, Key=key,
+                           Body=b'Here we have some test data')
 
 
 @mock.patch('big_data_getl.utils.StructType')
-def test_json_to_spark_schema_passes_correct_parameters(m_struct):
-    """json_to_spark_schema is called with right parameters and right order."""
-    # Arrange
+def test_json_to_spark_schema_correct_params(m_struct):
+    """json_to_spark_schema is called with right parameters and in the right order."""
+    # Arrange & Act
     json_to_spark_schema(create_json_schema())
 
-    # Act & Assert
+    # Assert
     m_struct.fromJson.assert_called_with(create_json_schema())
 
 
 def test_json_to_spark_schema():
     """json_to_spark_schema should load the json schema as StructType."""
-    # Act
+    # Arrange & Act
     result_schema = json_to_spark_schema(create_json_schema())
 
     # Assert
@@ -63,237 +45,215 @@ def test_json_to_spark_schema():
     ('missing_type_and_name', 'name'),
     ('missing_metadata', 'metadata')
 ])
-def test_json_to_spark_schema_invalid(invalid_schema: str, missed_key: str):
+def test_json_to_spark_schema_invalid(invalid_schema, missed_key):
     """json_to_spark_schema should raise KeyError for missing key."""
-    # Arrange
-    msg = 'All schema columns must have a name, type and nullable key'
-
-    # Act & Assert
-    with pytest.raises(KeyError) as excinfo:
+    # Arrange & Act
+    with pytest.raises(KeyError) as key_error:
         json_to_spark_schema(create_json_schema(invalid_schema))
+
+    # Assert
     assert 'Missing key: \'{0}\'. Valid format: {1}'.format(
-        missed_key, msg
-    ) in str(excinfo)
+        missed_key, 'All schema columns must have a name, type and nullable key'
+    ) in str(key_error)
 
 
-@pytest.mark.parametrize('obj_list', [
-    ['my/key/including/not_present.txt'],
-    ['my/key/including/n_present.txt', 'my/key/including/not_present.txt']
+@pytest.mark.parametrize('invalid_json', [
+    'invalid', {'invalid', }
 ])
-def test_delete_files_filenotfound(s3_mock, obj_list: str):
-    """delete_files returns FileNotFoundError for file is not present in S3."""
-    # Arrange
-    bucket_name = 'pytest'
-    create_s3_bucket(s3_mock)
+def test_json_to_spark_invalid_json(invalid_json):
+    """json_to_spark_schema should raise TypeError for invalid json."""
+    # Arrange & Act
+    with pytest.raises(TypeError) as type_error:
+        json_to_spark_schema(invalid_json)
 
-    # Act & Assert
-    with pytest.raises(FileNotFoundError) as excinfo:
-        delete_files(bucket_name, obj_list)
-    for obj in obj_list:
-        assert obj in str(excinfo)
+    # Assert
+    assert 'Invalid json was provided' in str(type_error)
 
 
-@pytest.mark.parametrize('obj_list', [
-    ['my/raw/including/not_present.txt'],
-    ['my/key/including/n_present.txt', 'my/raw/including/not_present.txt']
+@pytest.mark.parametrize('paths', [
+    ['husqvarna-datalake/raw/including/not_present.txt'],
+    ['my/key/including/n_present.txt',
+        'husqvarna-datalake/raw/including/not_present.txt']
 ])
-def test_delete_files_rawlayer(s3_mock, obj_list: str):
+def test_delete_files_not_possible_from_raw(paths):
     """delete_files returns PermissionError when deleting files from raw."""
     # Act & Assert
     with pytest.raises(PermissionError) as excinfo:
-        delete_files('bucket_name', obj_list)
-    assert 'Access Denied to remove files from raw layer' in str(excinfo)
+        delete_files(paths)
+
+    assert 'Access Denied: Not possible to remove files from raw layer' in str(
+        excinfo)
 
 
-@pytest.mark.parametrize('obj_list', [
-    [],
-    ['valid/path.json'],
-    ['valids/'],
-    ['valid/path.json', 'valid/path2.json'],
-    ['valids3/', 'valids4/']
+@pytest.mark.parametrize('paths,bucket,files', [
+    ([], 'landingzone', []),
+    (
+        ['landingzone/amc-connect/file.json',
+            'landingzone/amc-connect/test/file.json'],
+        'landingzone',
+        ['amc-connect/test/file.json', 'amc-connect/test/file.json']
+    )
 ])
-def test_delete_files_success(s3_mock, obj_list):
-    """delete_files returns None after successful deletion.
-
-    The deleted files should no longer exist in the bucket
-    """
+def test_delete_files_success(s3_mock, paths, bucket, files):
+    """delete_files should remove files successfully."""
     # Arrange
-    NoneType = type(None)
-    create_s3_bucket(s3_mock)
-    bucket = s3_mock.Bucket('pytest')
-    create_s3_files(s3_mock, obj_list)
+    create_s3_files(s3_mock, files, bucket=bucket)
 
     # Act & Assert
-    assert isinstance(delete_files(
-        'pytest',
-        obj_list),
-        NoneType
-    )
+    assert delete_files(paths) is None
 
-    for obj in obj_list:
+    for _file in files:
         with pytest.raises(ClientError) as excinfo:
-            bucket.Object(obj).get()
+            s3_mock.get_object(Bucket=bucket, Key=_file)
+
         assert 'NoSuchKey' in str(excinfo)
 
 
-@mock.patch('big_data_getl.utils.boto3')
-def test_delete_files_passes_correct_parameters(m_boto3):
-    """delete_files is called with right parameters and in right order."""
-    # Arrange
-    m_s3 = m_boto3.resource
-    m_bucket = m_s3.return_value.Bucket
-
-    # Act
-    delete_files('pytest', ['test'])
-
-    # Assert
-    m_s3.assert_called_with('s3')
-    m_bucket.assert_called_with('pytest')
-    m_bucket.return_value.delete_objects.assert_called_with(
-        Delete={'Objects': [{'Key': 'test'}]}
+@pytest.mark.parametrize('paths,bucket', [
+    ([], 'landingzone'),
+    (
+        ['landingzone/amc-connect/file.json',
+         'landingzone/amc-connect/test/file.json'],
+        'landingzone'
     )
+])
+def test_delete_files_success_nofile(s3_mock, paths, bucket):
+    """delete_files should run successfully even when files not found."""
+    # Arrange
+    s3_mock.create_bucket(Bucket=bucket)
+
+    # Act & Assert
+    assert delete_files(paths) is None
 
 
 @mock.patch('big_data_getl.utils.boto3')
-def test_copy_files_passes_correct_parameters(m_boto3):
-    """copy_files is called with right parameters and in right order."""
+def test_copy_keys_passes_correct_parameters(m_boto3):
+    """copy_keys is called with right parameters and in right order."""
     # Arrange
-    m_s3 = m_boto3.resource
-
-    # Act
-    copy_files(
-        'origin_bucket',
-        'destination_bucket',
-        'origin_stud',
-        'destination_stud',
-        ['obj_list']
-    )
+    m_s3 = m_boto3.client
+    m_s3.return_value.get_paginator.return_value.paginate.return_value = [
+        {'Contents': [{'Key': 'fake/key'}]}
+    ]
     copy_source = {
-        'Bucket': 'origin_bucket',
-        'Key': 's3a://' + 'origin_stud' + '/' + 'obj_list'
+        'Bucket': 'landingzone',
+        'Key': 'amc-connect/fake/key.json'
     }
 
+    # Act
+    copy_keys([('landingzone/amc-connect/fake/key.json',
+                'datalake/amc/raw/fake/key.json')])
+
     # Assert
     m_s3.assert_called_with('s3')
-    m_s3.return_value.meta.client.copy.assert_called_with(
+    m_s3.return_value.copy.assert_called_with(
         copy_source,
-        'destination_bucket',
-        's3a://' + 'destination_stud' + '/' + 'obj_list'
+        'datalake',
+        'amc/raw/fake/key.json'
     )
 
 
-@pytest.mark.parametrize('obj_list', [
-    [],
-    ['valid/path1.json'],
-    ['valids/'],
-    ['valid/path2.json', 'valid/path3.json'],
-    ['valids3/', 'valids4/']
+@pytest.mark.parametrize('transactions,source_bucket,target_bucket,files', [
+    (
+        [],
+        'tmp-bucket',
+        'tmp-bucket',
+        {'create_files': [], 'check_files': []}
+    ),
+    (
+        [('landingzone/amc-connect/file.json', 'datalake/amc/raw/file.json')],
+        'landingzone',
+        'datalake',
+        {'create_files': ['amc-connect/file.json'],
+            'check_files': ['amc/raw/file.json']}
+    ),
+    (
+        [('landingzone/amc-connect/file.json', 'datalake/amc/raw/file.json'),
+         ('landingzone/amc-connect/file2.json', 'datalake/amc/raw/file2.json'),
+         ('landingzone/amc-connect/test/file.json', 'datalake/amc/raw/test/file.json')],
+        'landingzone',
+        'datalake',
+        {
+            'create_files': [
+                'amc-connect/file.json',
+                'amc-connect/file2.json',
+                'amc-connect/test/file.json'
+            ],
+            'check_files': [
+                'amc/raw/file.json',
+                'amc/raw/file2.json',
+                'amc/raw/test/file.json'
+            ]
+        }
+    )
 ])
-def test_copy_files_successful(s3_mock, obj_list):
-    """copy_files returns None after successful deletion.
-
-    The copied files should exist in the target location
-    """
+def test_copy_keys_successful(s3_mock, transactions, source_bucket, target_bucket, files):
+    """copy_keys should copy files to target location."""
     # Arrange
-    NoneType = type(None)
-    origin_bucket = 'hq-dl-landingzone-dev-amc'
-    destination_bucket = 'hq-datalake'
-    origin_stud = 'hq-dl-landingzone-dev-amc/landing-zone/amc-connections'
-    destination_stud = 'hq-datalake/raw/amc/amc-connections'
-    create_s3_files(s3_mock,
-                    obj_list,
-                    origin_bucket,
-                    's3a://' + origin_stud + '/')
-    create_s3_bucket(s3_mock, destination_bucket)
+    create_s3_files(s3_mock, files['create_files'], bucket=source_bucket)
+    s3_mock.create_bucket(Bucket=target_bucket)
 
     # Act & Assert
-    assert isinstance(
-        copy_files(
-            origin_bucket,
-            destination_bucket,
-            origin_stud,
-            destination_stud,
-            obj_list
-        ),
-        NoneType
+    assert copy_keys(transactions) is None
+
+    for target_file in files['check_files']:
+        res = s3_mock.get_object(Bucket=target_bucket, Key=target_file)
+        assert res['ResponseMetadata']['HTTPStatusCode'] == 200
+
+
+@pytest.mark.parametrize('transactions,source_bucket,target_bucket,error_msg', [
+    (
+        [('landingzone/amc-connect/file.json', 'datalake/amc/raw/file.json')],
+        'landingzone',
+        'datalake',
+        'File not found with bucket: landingzone key: amc-connect/file.json'
+    ),
+    (
+        [('landingzone/amc-connect/file.json', 'datalake/amc/raw/file.json')],
+        'wrong_src_bkt',
+        'wrong_tgt_bkt',
+        'The specified bucket landingzone does not exist'
     )
-
-    for obj in obj_list:
-        dest_file_paths = 's3a://' + destination_stud + '/' + obj
-        return_value = (
-            s3_mock
-            .Bucket(destination_bucket)
-            .Object(dest_file_paths)
-            .get()
-        )
-        assert return_value['ResponseMetadata']['HTTPStatusCode'] == 200
-
-
-@pytest.mark.parametrize('obj_list', [
-    ['my/key/including/not_present.txt'],
-    ['my/key/including/n_present.txt', 'my/key/including/not_present.txt']
 ])
-def test_copy_files_failure(s3_mock, obj_list):
-    """copy_files returns None after successful deletion.
-
-    The copied files should exist in the target location
-    """
+def test_copy_keys_throws_exceptions(s3_mock,
+                                     transactions,
+                                     source_bucket,
+                                     target_bucket,
+                                     error_msg):
+    """copy_keys throws exception when files or bucket not found."""
     # Arrange
-    origin_bucket = 'hq-dl-landingzone-dev-amc'
-    destination_bucket = 'hq-datalake'
-    origin_stud = 'hq-dl-landingzone-dev-amc/landing-zone/amc-connections'
-    destination_stud = 'hq-datalake/raw/amc/amc-connections'
-    create_s3_bucket(s3_mock, origin_bucket)
-    create_s3_bucket(s3_mock, destination_bucket)
-    error_msg = (
-        "An error occurred (404) when calling the "
-        "HeadObject operation: Not Found"
-    )
+    s3_mock.create_bucket(Bucket=target_bucket)
+    s3_mock.create_bucket(Bucket=source_bucket)
 
     # Act & Assert
-    with pytest.raises(FileNotFoundError) as excinfo:
-        copy_files(
-            origin_bucket,
-            destination_bucket,
-            origin_stud,
-            destination_stud,
-            obj_list
-        )
-    assert error_msg in str(excinfo)
+    with pytest.raises(FileNotFoundError) as file_not_found:
+        copy_keys(transactions)
+
+    assert error_msg in str(file_not_found)
 
 
 @mock.patch('big_data_getl.utils.delete_files')
-@mock.patch('big_data_getl.utils.copy_files')
-@mock.patch('big_data_getl.utils.boto3')
-def test_copy_and_cleanup_passes_correct_parameters(m_boto3, m_copy, m_delete):
-    """copy_files is called with right parameters and in right order."""
-    # Arrange
-    create_s3_bucket(m_boto3.resource('s3'), 'destination_bucket')
-    create_s3_bucket(m_boto3.resource('s3'), 'origin_bucket')
-    origin_paths = ['obj_list']
-    obj_list = []
-    for obj in origin_paths:
-        obj_list.append('s3a://' + 'origin_stud' + '/' + obj)
-
-    # Act
-    copy_and_cleanup(
-        'origin_bucket',
-        'destination_bucket',
-        'origin_stud',
-        'destination_stud',
-        ['obj_list']
-    )
+@mock.patch('big_data_getl.utils.copy_keys')
+def test_copy_and_cleanup_pass_parameters(m_copy, m_delete):
+    """copy_keys is called with right parameters and in right order."""
+    # Arrange & Act
+    copy_and_cleanup([('bucket/key', 'bucket/key2')])
 
     # Assert
-    m_copy.assert_called_once_with(
-        'origin_bucket',
-        'destination_bucket',
-        'origin_stud',
-        'destination_stud',
-        ['obj_list']
-    )
+    m_copy.assert_called_once_with([('bucket/key', 'bucket/key2')])
+    m_delete.assert_called_once_with(['bucket/key'])
 
-    m_delete.assert_called_with(
-        'origin_bucket',
-        obj_list
-    )
+
+@mock.patch('big_data_getl.utils.delete_files')
+@mock.patch('big_data_getl.utils.copy_keys')
+def test_copy_and_cleanup_call_order(m_copy, m_delete):
+    """copy_keys is called with copy and delete functions in right order."""
+    # Arrange & Act
+    manager = mock.Mock()
+    manager.attach_mock(m_copy, 'c')
+    manager.attach_mock(m_delete, 'd')
+
+    copy_and_cleanup([('from', 'to')])
+
+    # Assert
+    expected_call = [mock.call.c([('from', 'to')]), mock.call.d(['from'])]
+    assert manager.mock_calls == expected_call

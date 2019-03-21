@@ -1,52 +1,67 @@
-"""Unit test for GETL utils function."""
-import json
+"""Unit test for GETL write function."""
 from unittest import mock
-from unittest.mock import patch
 
-import boto3
-import botocore
 import pytest
-from moto import mock_s3
 
-from big_data_getl.write import write
-from pyspark.sql import DataFrame
-from tests.data.utils.example_json_schema import create_json_schema
+from big_data_getl.write import write_json, write_delta
 
 
-@pytest.mark.parametrize('file_type, write_mode', [
-    ('json', 'append'),
-    ('delta', 'append'),
-    ('json', 'overwrite'),
-    ('delta', 'overwrite')
+@pytest.mark.parametrize('mode', [
+    None, 'append', 'overwrite', 'error'
 ])
 @mock.patch('big_data_getl.write.DataFrame')
-def test_write_passes_correct_parameters(m_df, file_type, write_mode):
-    """Write is called with right parameters and right order.
-
-    write returns none after successful write
-    """
-    # Act & Assert
-    assert isinstance(
-        write(m_df, 'folder_path', file_type, write_mode), None)
-    m_df.write.mode.assert_called_with(write_mode)
-    m_df.write.mode.return_value.format.assert_called_with(file_type)
-    m_df.write.mode.return_value.format.return_value.save.assert_called_with(
-        'folder_path')
-
-
-@pytest.mark.parametrize('file_type', [
-    'csv', 'parquet', 'orc', 'avro'
-])
-@mock.patch('big_data_getl.write.DataFrame')
-def test_write_implementation_error(m_df, file_type):
-    """Write should raise NotImplementedError when called to write
-    file types other than json or delta."""
+def test_write_json_passes_correct_parameters(m_df, mode):
+    """write_json is called with right parameters and right order."""
     # Arrange
-    msg = ('Write as {} is not supported. Accepted values are JSON & delta'
-           ).format(
-        file_type
-    )
+    m_df_repartition = m_df.repartition(1)
+    if mode is None:
+        args = (m_df, 'folder_path')
+    else:
+        args = (m_df, 'folder_path', mode)
+
     # Act & Assert
-    with pytest.raises(NotImplementedError) as excinfo:
-        write(m_df, 'folder_path', file_type)
-    assert msg in str(excinfo)
+    assert write_json(*args) is None
+
+    m_df.repartition.assert_called_with(1)
+    m_df_repartition.write.save.assert_called_with(
+        format='json',
+        mode='overwrite' if mode is None else mode,
+        path='folder_path'
+    )
+
+
+@pytest.mark.parametrize('mode', [
+    None, 'append', 'overwrite', 'error'
+])
+@mock.patch('big_data_getl.write.DataFrame')
+def test_write_delta_passes_correct_parameters(m_df, mode):
+    """write_delta is called with right parameters and right order."""
+    # Arrange
+    if mode is None:
+        args = (m_df, 'folder_path')
+    else:
+        args = (m_df, 'folder_path', mode)
+
+    # Act & Assert
+    assert write_delta(*args) is None
+
+    m_df.write.save.assert_called_with(
+        format='delta',
+        mode='append' if mode is None else mode,
+        path='folder_path'
+    )
+
+
+@pytest.mark.parametrize('write_function', [
+    write_delta, write_json
+])
+@mock.patch('big_data_getl.write.DataFrame')
+def test_write_raises_error_invalid_writemode(m_df, write_function):
+    """write is called with right parameters and right order."""
+    # Assign
+    args = (m_df, 'folder_path', 'invalid_mode')
+    error = 'Allowable write modes are overwrite, append, error, errorifexisits, error. But invalid_mode was provided'
+    # Act & Assert
+    with pytest.raises(ValueError) as value_error:
+        write_function(*args)
+    assert error in str(value_error)

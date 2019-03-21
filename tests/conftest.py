@@ -2,12 +2,13 @@
 import boto3
 import pytest
 from moto import mock_s3
+from typing import List
 
 from pyspark.sql import SparkSession
 
 
 @pytest.fixture(scope="module")
-def spark_session():
+def spark_session() -> SparkSession:
     """Return a sparksession fixture."""
     spark = (
         SparkSession
@@ -22,8 +23,7 @@ def spark_session():
 
 @mock_s3
 @pytest.fixture(scope="function")
-def s3_mock():
+def s3_mock() -> boto3.resource('s3'):
     """Mock boto3 using moto library."""
     mock_s3().start()
-    s3 = boto3.resource('s3')
-    return s3
+    yield boto3.client('s3')

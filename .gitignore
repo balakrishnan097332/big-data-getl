@@ -4,3 +4,8 @@
 __pycache__
 coverage-reports/
 test-reports/
+_*/
+Makefile
+*.rst
+conf.py
+git

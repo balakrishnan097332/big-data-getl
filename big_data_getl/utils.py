@@ -64,8 +64,7 @@ def delete_files(paths: List[str]) -> None:
 
     """
     if any('husqvarna-datalake/raw/' in path for path in paths):
-        raise PermissionError(
-            'Access Denied: Not possible to remove files from raw layer')
+        raise PermissionError('Access Denied: Not possible to remove files from raw layer')
 
     client = boto3.client('s3')
 

@@ -15,8 +15,6 @@ from pyspark import RDD
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.utils import AnalysisException
 
-from big_data_getl.utils import json_to_spark_schema
-
 LOGGING = logging.getLogger(__name__)
 JsonSchemaType = TypeVar('T', int, float, str, complex)
 

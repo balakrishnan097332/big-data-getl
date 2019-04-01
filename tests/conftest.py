@@ -1,12 +1,10 @@
-from pyspark.sql import SparkSession
 """ConfTest fixture for SparkSession and logger."""
 from shutil import rmtree
-from typing import List
 
 import boto3
-
 import pytest
 from moto import mock_s3
+from pyspark.sql import SparkSession
 
 
 @pytest.fixture(scope="module")

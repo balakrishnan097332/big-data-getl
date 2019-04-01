@@ -1,9 +1,11 @@
 """Unit test for GETL write function."""
+import os
 from unittest import mock
 
 import pytest
 
-from big_data_getl.write import write_json, write_delta
+from big_data_getl.write import write_delta, write_json
+from tests.data.schema_sample import create_valid_schema
 
 
 @pytest.mark.parametrize('mode', [
@@ -13,7 +15,6 @@ from big_data_getl.write import write_json, write_delta
 def test_write_json_passes_correct_parameters(m_df, mode):
     """write_json is called with right parameters and right order."""
     # Arrange
-    m_df_repartition = m_df.repartition(1)
     if mode is None:
         args = (m_df, 'folder_path')
     else:
@@ -23,7 +24,7 @@ def test_write_json_passes_correct_parameters(m_df, mode):
     assert write_json(*args) is None
 
     m_df.repartition.assert_called_with(1)
-    m_df_repartition.write.save.assert_called_with(
+    m_df.repartition.return_value.write.save.assert_called_with(
         format='json',
         mode='overwrite' if mode is None else mode,
         path='folder_path'
@@ -52,16 +53,15 @@ def test_write_delta_passes_correct_parameters(m_df, mode):
     )
 
 
-@pytest.mark.parametrize('write_function', [
-    write_delta, write_json
-])
-@mock.patch('big_data_getl.write.DataFrame')
-def test_write_raises_error_invalid_writemode(m_df, write_function):
-    """write is called with right parameters and right order."""
-    # Assign
-    args = (m_df, 'folder_path', 'invalid_mode')
-    error = 'Allowable write modes are overwrite, append, error, errorifexisits, error. But invalid_mode was provided'
-    # Act & Assert
-    with pytest.raises(ValueError) as value_error:
-        write_function(*args)
-    assert error in str(value_error)
+def test_write_json_writes_one_file(spark_session, tmp_dir):
+    """Write json should only write one file."""
+    # Arrange
+    data = [{'name': 'Mark Steelspitter'} for d in range(10000)]
+    dataframe = spark_session.createDataFrame(data, create_valid_schema())
+
+    # Act
+    write_json(dataframe, tmp_dir)
+
+    # Assert
+    json_files = [_file for _file in os.listdir(tmp_dir) if _file.endswith('.json')]
+    assert len(json_files) == 1

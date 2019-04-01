@@ -7,8 +7,8 @@ from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, SparkSession
 
 from big_data_getl.load import load_json, load_rdd, load_xml
-from tests.data.load.example_schema import (create_json_schema,
-                                            create_valid_schema)
+from tests.data.schema_sample import (create_json_schema,
+                                      create_valid_schema)
 
 environ['PYSPARK_SUBMIT_ARGS'] = (
     '--packages com.databricks:spark-xml_2.10:0.4.1 pyspark-shell')
@@ -19,7 +19,7 @@ environ['PYSPARK_SUBMIT_ARGS'] = (
 def test_load_json_valid_path(spark_session):
     """load_json should be able to load json files to a dataframe."""
     # Arrange
-    file_paths = ['./tests/data/load/sample.json']
+    file_paths = ['./tests/data/json_sample.json']
 
     # Act
     result_df = load_json(spark_session, file_paths, create_json_schema())
@@ -91,7 +91,7 @@ def test_json_load_with_invalid_schema(spark_session, schema):
     """
     result_df = load_json(
         spark_session,
-        paths=['./tests/data/load/sample.json'],
+        paths=['./tests/data/json_sample.json'],
         json_schema=create_json_schema(schema)
     )
 

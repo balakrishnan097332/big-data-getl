@@ -1,14 +1,16 @@
+from pyspark.sql import SparkSession
 """ConfTest fixture for SparkSession and logger."""
-import boto3
-import pytest
-from moto import mock_s3
+from shutil import rmtree
 from typing import List
 
-from pyspark.sql import SparkSession
+import boto3
+
+import pytest
+from moto import mock_s3
 
 
 @pytest.fixture(scope="module")
-def spark_session() -> SparkSession:
+def spark_session():
     """Return a sparksession fixture."""
     spark = (
         SparkSession
@@ -23,7 +25,17 @@ def spark_session() -> SparkSession:
 
 @mock_s3
 @pytest.fixture(scope="function")
-def s3_mock() -> boto3.resource('s3'):
+def s3_mock():
     """Mock boto3 using moto library."""
     mock_s3().start()
     yield boto3.client('s3')
+
+
+@pytest.fixture(scope="function")
+def tmp_dir(pytestconfig):
+    """Return a tmp dir folder to write to that is then cleaned up."""
+    tmp_path = '{}/tests/data/tmp'.format(pytestconfig.rootdir)
+
+    yield tmp_path
+
+    rmtree(tmp_path)
